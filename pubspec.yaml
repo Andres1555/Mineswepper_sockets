@@ -36,7 +36,6 @@ dependencies:
   cupertino_icons: ^1.0.8
   equatable: ^2.0.5
   flutter_bloc: ^9.1.1
-  network_info_plus: ^6.1.4
   bloc: 9.0.0
 
 dev_dependencies:
@@ -57,14 +56,18 @@ dev_dependencies:
 # The following section is specific to Flutter packages.
 flutter:
 
-  # The following line ensures that the Material Icons font is
-  # included with your application, so that you can use the icons in
-  # the material Icons class.
   uses-material-design: true
 
   assets:
-   - assets/
+    - assets/
+    - assets/fondobuscaminas.jpg
 
+  fonts:
+    - family: Alucrads
+      fonts:
+        - asset: assets/fonts/Alucrads.ttf
+
+  
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
 

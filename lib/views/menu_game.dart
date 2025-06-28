@@ -1,24 +1,38 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:sockets/colors.dart';
-import 'package:sockets/sockets.dart'; 
-import 'package:sockets/model/model.dart';
 import 'package:sockets/cells.dart';
+import 'package:sockets/model/model.dart';
 import 'package:sockets/sucesos/event.dart';
 import 'package:sockets/sucesos/moment.dart';
+import 'package:sockets/game.dart';
+import 'package:sockets/network/client.dart';
 
 class Gamemenu extends StatelessWidget {
   static const routeName = '/game';
-  static const configurationKey = 'configuration';
 
   final GameConfiguration configuration;
+  final String serverAddress;
+  final int serverPort;
 
-  const Gamemenu({super.key, required this.configuration});
+  const Gamemenu({
+    super.key,
+    required this.configuration,
+    required this.serverAddress,
+    required this.serverPort,
+  });
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (context) => GameBloc(configuration)..add(const InitGame()),
+      create: (context) {
+        final socket = WebSocketClient();
+        final url = 'ws://$serverAddress:$serverPort';
+        socket.connect(url);
+        final bloc = GameBloc(configuration, socket);
+        bloc.add(const InitGame());
+        return bloc;
+      },
       child: BlocBuilder<GameBloc, Gamemoment>(
         builder: (context, state) {
           return Scaffold(
@@ -28,7 +42,7 @@ class Gamemenu extends StatelessWidget {
                 IconButton(
                   icon: const Icon(Icons.refresh),
                   onPressed: () {
-                    context.read<GameBloc>().add(const InitGame());
+                    context.read<GameBloc>().socket.sendRestart();
                   },
                 ),
               ],
@@ -69,10 +83,6 @@ class Gamemenu extends StatelessWidget {
         state.isWinner,
       );
     }
-    return _loading();
-  }
-
-  Widget _loading() {
     return const Center(child: CircularProgressIndicator());
   }
 
@@ -84,7 +94,8 @@ class Gamemenu extends StatelessWidget {
     int timeElapsed,
     bool isWinner,
   ) {
-    final bloc = context.read<GameBloc>();
+    final socket = context.read<GameBloc>().socket;
+
     return Column(
       children: [
         Padding(
@@ -115,8 +126,8 @@ class Gamemenu extends StatelessWidget {
                 child: CellView(
                   key: ObjectKey(cells[index]),
                   cell: cells[index],
-                  onLongPress: () => bloc.add(LongClicked(index)),
-                  onClick: () => bloc.add(Click(index)),
+                  onClick: () => socket.sendClick(index),
+                  onLongPress: () => socket.sendFlag(index),
                 ),
               );
             },

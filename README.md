@@ -1,10 +1,12 @@
-# sockets
+# Mineswepper_sockets
 
-A new Flutter project.
 
-## Getting Started
+## Instalacion
 
-This project is a starting point for a Flutter application.
+-flutter pub get
+-dart run sockets.dart
+-flutter run
+-enjoy
 
 A few resources to get you started if this is your first Flutter project:
 

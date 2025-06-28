@@ -5,12 +5,31 @@ import 'package:bloc/bloc.dart';
 import 'package:sockets/model/model.dart';
 import 'package:sockets/sucesos/event.dart';
 import 'package:sockets/sucesos/moment.dart';
+import 'package:sockets/network/client.dart'; 
 
 class GameBloc extends Bloc<Event, Gamemoment> {
+  final GameConfiguration configuration;
+  final WebSocketClient socket;
+
   Timer? _timer;
   int _time = 0;
 
-  GameBloc(GameConfiguration configuration) : super(GameInitial(configuration)) {
+  GameBloc(this.configuration, this.socket) : super(GameInitial(configuration)) {
+    // Escucha mensajes del servidor
+    socket.onServerEvent = (type, msg) {
+      switch (type) {
+        case 'click':
+          add(Click(msg['index']));
+          break;
+        case 'flag':
+          add(LongClicked(msg['index']));
+          break;
+        case 'restart':
+          add(InitGame());
+          break;
+      }
+    };
+
     on<InitGame>(_onInitGame);
     on<Click>(_onClick);
     on<LongClicked>(_onLongClick);
@@ -18,16 +37,15 @@ class GameBloc extends Bloc<Event, Gamemoment> {
   }
 
   void _onInitGame(InitGame event, Emitter<Gamemoment> emit) {
-    final config = state.gameConfiguration;
-    final List<Cell> cells = _generateCells(config.width, config.height, config.mines);
+    final List<Cell> cells = _generateCells(configuration.width, configuration.height, configuration.mines);
     _time = 0;
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) => add(TimeTick()));
 
     emit(Playing(
-      configuration: config,
+      configuration: configuration,
       cells: cells,
-      minesRemaining: config.mines,
+      minesRemaining: configuration.mines,
       timeElapsed: _time,
     ));
   }
@@ -63,8 +81,8 @@ class GameBloc extends Bloc<Event, Gamemoment> {
 
     final newCells = [...current.cells];
     final revealed = _revealArea(event.index, newCells, current.gameConfiguration);
-
     final hasWon = _checkIfWon(revealed, current.gameConfiguration.mines);
+
     if (hasWon) {
       _timer?.cancel();
       emit(Finished(
@@ -94,6 +112,7 @@ class GameBloc extends Bloc<Event, Gamemoment> {
       content: cell.content,
       isFlagged: !cell.isFlagged,
     );
+
     final newCells = [...current.cells];
     newCells[event.index] = updated;
 
@@ -203,6 +222,7 @@ class GameBloc extends Bloc<Event, Gamemoment> {
   @override
   Future<void> close() {
     _timer?.cancel();
+    socket.close();
     return super.close();
   }
 }

@@ -2,28 +2,40 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:async';
 
+
 final List<WebSocket> _clients = [];
 final Map<WebSocket, int> _playerIds = {};
 int _currentPlayer = 1;
-void main() async {
-  await startserver();
-}
-Future<void> startserver() async {
-  final ip = await _getLocalIP();
+WebSocket? _selfSocket;
 
-  if (ip == null) {
-    print('⚠️ No se pudo obtener la IP local.');
-    return;
+/// Punto de entrada con parámetro isHost
+Future<void> startGame({required bool isHost, String? hostAddress, int? port}) async {
+  if (isHost) {
+    final ip = await _getLocalIP();
+    if (ip == null) {
+      print('❌ No se pudo obtener la IP local.');
+      return;
+    }
+    final realPort = port ?? await _findFreePort();
+    // Inicia el servidor pero NO esperes a que haya clientes para enviar el tablero
+    unawaited(_startServer(ip, realPort));
+    await _connectAsClient('ws://$ip:$realPort');
+    print('🟢 Host iniciado en ws://$ip:$realPort');
+  } else {
+    if (hostAddress == null) {
+      print('❌ Dirección del host requerida para unirse.');
+      return;
+    }
+    final uri = Uri.parse(hostAddress);
+    final port = uri.hasPort ? uri.port : 8080;
+    await _connectAsClient('ws://${uri.host}:$port');
   }
+}
 
-  stdout.write('🔌 Puerto (enter para automático): ');
-  final input = stdin.readLineSync();
-  final port = (input == null || input.isEmpty)
-      ? await _findFreePort()
-      : int.tryParse(input) ?? await _findFreePort();
-
+/// Inicia el servidor WebSocket
+Future<void> _startServer(String ip, int port) async {
   final server = await HttpServer.bind(ip, port);
-  print('✅ Servidor WebSocket en: ws://$ip:$port');
+  print('Servidor WebSocket en: ws://$ip:$port');
 
   await for (HttpRequest request in server) {
     if (WebSocketTransformer.isUpgradeRequest(request)) {
@@ -33,7 +45,6 @@ Future<void> startserver() async {
         socket.close();
         continue;
       }
-
       _clients.add(socket);
       _playerIds[socket] = _clients.length;
       print('🎮 Cliente ${_playerIds[socket]} conectado');
@@ -41,7 +52,7 @@ Future<void> startserver() async {
       socket.listen(
         (data) => _handleMessage(socket, data),
         onDone: () {
-          print('👋 Cliente ${_playerIds[socket]} desconectado');
+          print('Cliente ${_playerIds[socket]} desconectado');
           _clients.remove(socket);
           _playerIds.remove(socket);
         },
@@ -60,14 +71,36 @@ Future<void> startserver() async {
   }
 }
 
-Future<String?> _getLocalIP() async {
-  final interfaces = await NetworkInterface.list(type: InternetAddressType.IPv4);
-  for (final interface in interfaces) {
-    for (final addr in interface.addresses) {
-      if (!addr.isLoopback) return addr.address;
-    }
+/// Conecta este mismo dispositivo como cliente
+Future<void> _connectAsClient(String url) async {
+  try {
+    _selfSocket = await WebSocket.connect(url);
+    print('✅ Conectado como jugador a $url');
+
+    _selfSocket!.listen((data) {
+      final msg = jsonDecode(data);
+      if (msg is Map<String, dynamic>) {
+        final type = msg['type'];
+        print('📩 Evento recibido: $type → $msg');
+      }
+    }, onDone: () {
+      print('🔌 Desconectado del servidor');
+    });
+  } catch (e) {
+    print('❌ Error al conectar como cliente: $e');
   }
-  return null;
+}
+
+void sendClick(int index) => _send({'type': 'click', 'index': index});
+void sendFlag(int index) => _send({'type': 'flag', 'index': index});
+void sendRestart() => _send({'type': 'restart'});
+
+void _send(Map<String, dynamic> msg) {
+  if (_selfSocket?.readyState == WebSocket.open) {
+    _selfSocket!.add(jsonEncode(msg));
+  } else {
+    print('⚠️ No conectado. Mensaje no enviado: $msg');
+  }
 }
 
 void _handleMessage(WebSocket sender, String data) {
@@ -112,6 +145,16 @@ void _switchTurn() {
   _broadcast(jsonEncode({'type': 'turn', 'currentPlayer': _currentPlayer}));
 }
 
+Future<String?> _getLocalIP() async {
+  final interfaces = await NetworkInterface.list(type: InternetAddressType.IPv4);
+  for (final interface in interfaces) {
+    for (final addr in interface.addresses) {
+      if (!addr.isLoopback) return addr.address;
+    }
+  }
+  return null;
+}
+
 Future<int> _findFreePort() async {
   for (int port = 8000; port < 8100; port++) {
     try {
@@ -122,5 +165,5 @@ Future<int> _findFreePort() async {
       continue;
     }
   }
-  throw Exception('❌ No se encontró un puerto disponible entre 8000 y 8100.');
+  throw Exception('No se encontró un puerto disponible entre 8000 y 8100.');
 }

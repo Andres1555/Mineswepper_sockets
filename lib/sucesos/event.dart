@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 
+
 abstract class Event extends Equatable {
   const Event();
 
@@ -9,6 +10,9 @@ abstract class Event extends Equatable {
 
 class InitGame extends Event {
   const InitGame();
+
+  @override
+  List<Object> get props => [];
 }
 
 class Click extends Event {

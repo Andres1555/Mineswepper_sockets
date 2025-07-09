@@ -60,12 +60,12 @@ flutter:
 
   assets:
     - assets/
-    - assets/fondobuscaminas.jpg
+    - assets/descarga.png
 
   fonts:
-    - family: Alucrads
+    - family: yoster
       fonts:
-        - asset: assets/fonts/Alucrads.ttf
+        - asset: assets/fonts/yoster.ttf
 
   
   # An image asset can refer to one or more resolution-specific "variants", see

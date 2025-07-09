@@ -12,9 +12,9 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'MineSweeper',
+      title: 'Buscaminas',
       theme: ThemeData(
-        fontFamily: 'Alucrads', 
+        fontFamily: 'yoster',
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
@@ -30,6 +30,7 @@ class MyApp extends StatelessWidget {
               configuration: args['configuration'],
               serverAddress: args['serverAddress'],
               serverPort: args['serverPort'],
+              isHost: args['isHost'], 
             ),
           );
         }

@@ -7,25 +7,34 @@ typedef OnServerEvent = void Function(String type, Map<String, dynamic> msg);
 class WebSocketClient {
   late WebSocket _socket;
   bool _connected = false;
-  OnServerEvent? onServerEvent; // ← ya no es final
+  OnServerEvent? onServerEvent; 
 
   WebSocketClient();
 
   Future<void> connect(String url) async {
-    _socket = await WebSocket.connect(url);
-    _connected = true;
-    print('✅ Conectado a $url');
+    try {
+      _socket = await WebSocket.connect(url);
+      _connected = true;
+      print('✅ Conectado a $url');
 
-    _socket.listen((data) {
-      final msg = jsonDecode(data);
-      if (msg is Map<String, dynamic>) {
-        final type = msg['type'];
-        onServerEvent?.call(type, msg); // uso seguro con null check
-      }
-    }, onDone: () {
-      print('🔌 Desconectado del servidor');
-      _connected = false;
-    });
+      _socket.listen((data) {
+        final msg = jsonDecode(data);
+        if (msg is Map<String, dynamic>) {
+          final type = msg['type'];
+          if (type == 'turn') {
+            final currentPlayer = msg['currentPlayer'];
+            print('🔄 Turno del jugador $currentPlayer');
+          }
+          onServerEvent?.call(type, msg);
+        }
+      }, onDone: () {
+        print('🔌 Desconectado del servidor');
+        _connected = false;
+      });
+    } catch (e) {
+      print('❌ Error al conectar a $url: $e');
+      rethrow; // Lanzar la excepción para que la UI la maneje
+    }
   }
 
   void sendClick(int index) {

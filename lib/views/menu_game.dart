@@ -7,32 +7,71 @@ import 'package:sockets/sucesos/event.dart';
 import 'package:sockets/sucesos/moment.dart';
 import 'package:sockets/game.dart';
 import 'package:sockets/network/client.dart';
+import 'package:sockets/network/sockets.dart'; // 👈 Asegúrate de tener esta importación
 
-class Gamemenu extends StatelessWidget {
+class Gamemenu extends StatefulWidget {
   static const routeName = '/game';
 
   final GameConfiguration configuration;
   final String serverAddress;
   final int serverPort;
+  final bool isHost; // 👈 Nuevo parámetro
 
   const Gamemenu({
     super.key,
     required this.configuration,
     required this.serverAddress,
     required this.serverPort,
+    required this.isHost,
   });
 
   @override
+  State<Gamemenu> createState() => _GamemenuState();
+}
+
+class _GamemenuState extends State<Gamemenu> {
+  late final WebSocketClient socket;
+  late final GameBloc bloc;
+  bool _initialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    socket = WebSocketClient();
+    bloc = GameBloc(widget.configuration, socket);
+    _initializeConnection();
+    setState(() {
+      _initialized = true;
+    });
+  }
+
+  Future<void> _initializeConnection() async {
+    final url = 'ws://${widget.serverAddress}:${widget.serverPort}';
+
+    if (widget.isHost) {
+      await startGame(isHost: true, port: widget.serverPort); // 👈 Usa el puerto correcto
+    }
+
+    await socket.connect(url); // 👈 Luego se conecta como jugador
+    bloc.add(const InitGame());
+  }
+
+  @override
+  void dispose() {
+    socket.close();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (context) {
-        final socket = WebSocketClient();
-        final url = 'ws://$serverAddress:$serverPort';
-        socket.connect(url);
-        final bloc = GameBloc(configuration, socket);
-        bloc.add(const InitGame());
-        return bloc;
-      },
+    if (!_initialized) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    return BlocProvider.value(
+      value: bloc,
       child: BlocBuilder<GameBloc, Gamemoment>(
         builder: (context, state) {
           return Scaffold(

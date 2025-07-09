@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:sockets/model/model.dart';
 import 'menu_game.dart';
@@ -14,7 +15,7 @@ class Menu extends StatelessWidget {
         title: const Text(
           'MineSweeper',
           style: TextStyle(
-            fontFamily: 'Alucrads',
+            fontFamily: 'yoster',
             fontSize: 20,
           ),
         ),
@@ -23,7 +24,7 @@ class Menu extends StatelessWidget {
         fit: StackFit.expand,
         children: [
           Image.asset(
-            'assets/fondobuscaminas.jpg',
+            'assets/descarga.png',
             fit: BoxFit.cover,
           ),
           Container(color: Colors.black.withOpacity(0.3)),
@@ -51,24 +52,72 @@ class Menu extends StatelessWidget {
     );
   }
 
-  void _onHostGameClicked(BuildContext context) {
+  Future<void> _onHostGameClicked(BuildContext context) async {
     final config = GameConfiguration(width: 10, height: 10, mines: 15);
+    final ip = await _getLocalIP();
+    int port = await _findFreePort();
+
+    if (ip == null) {
+      _showError(context, 'No se pudo obtener la IP local.');
+      return;
+    }
+
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => Gamemenu(
           configuration: config,
-          serverAddress: '127.0.0.1',
-          serverPort: 8080,
+          serverAddress: ip,
+          serverPort: port,
+          isHost: true,
         ),
       ),
     );
+  }
+
+  Future<int> _findFreePort() async {
+    for (int port = 8000; port < 8100; port++) {
+      try {
+        final test = await ServerSocket.bind(InternetAddress.anyIPv4, port);
+        await test.close();
+        return port;
+      } catch (_) {
+        continue;
+      }
+    }
+    return 8080; // fallback
   }
 
   void _onJoinGameClicked(BuildContext context) {
     showDialog(
       context: context,
       builder: (_) => const _JoinDialog(),
+    );
+  }
+
+  Future<String?> _getLocalIP() async {
+    final interfaces = await NetworkInterface.list(type: InternetAddressType.IPv4);
+    for (final interface in interfaces) {
+      for (final addr in interface.addresses) {
+        if (!addr.isLoopback) return addr.address;
+      }
+    }
+    return null;
+  }
+
+  void _showError(BuildContext context, String message) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Error'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -95,7 +144,7 @@ class PixelButton extends StatelessWidget {
           textAlign: TextAlign.center,
           style: const TextStyle(
             fontSize: 20,
-            fontFamily: 'Alucrads',
+            fontFamily: 'yoster',
             color: Colors.white,
             height: 1.4,
           ),
@@ -132,6 +181,7 @@ class _JoinDialogState extends State<_JoinDialog> {
           configuration: config,
           serverAddress: ip,
           serverPort: port,
+          isHost: false,
         ),
       ),
     );
@@ -148,7 +198,7 @@ class _JoinDialogState extends State<_JoinDialog> {
       title: const Text(
         'Conectarse al host',
         style: TextStyle(
-          fontFamily: 'Alucrads',
+          fontFamily: 'yoster',
           fontSize: 14,
           color: Colors.white,
         ),
@@ -161,7 +211,7 @@ class _JoinDialogState extends State<_JoinDialog> {
             TextFormField(
               controller: ipController,
               style: const TextStyle(
-                fontFamily: 'Alucrads',
+                fontFamily: 'yoster',
                 fontSize: 12,
                 color: Colors.white,
               ),
@@ -180,7 +230,7 @@ class _JoinDialogState extends State<_JoinDialog> {
               controller: portController,
               keyboardType: TextInputType.number,
               style: const TextStyle(
-                fontFamily: 'Alucrads',
+                fontFamily: 'yoster',
                 fontSize: 12,
                 color: Colors.white,
               ),
@@ -203,7 +253,7 @@ class _JoinDialogState extends State<_JoinDialog> {
           child: const Text(
             'Cancelar',
             style: TextStyle(
-              fontFamily: 'Alucrads',
+              fontFamily: 'yoster',
               fontSize: 12,
               color: Colors.white,
             ),
@@ -215,7 +265,7 @@ class _JoinDialogState extends State<_JoinDialog> {
           child: const Text(
             'Conectar',
             style: TextStyle(
-              fontFamily: 'Alucrads',
+              fontFamily: 'yoster',
               fontSize: 12,
               color: Colors.black,
             ),

@@ -1,13 +1,15 @@
 import 'dart:convert';
 import 'dart:io';
 
-
-typedef OnServerEvent = void Function(String type, Map<String, dynamic> msg);
-
 class WebSocketClient {
   late WebSocket _socket;
   bool _connected = false;
-  OnServerEvent? onServerEvent; 
+  Function(String type, Map<String, dynamic> msg)? onServerEvent;
+  int? receivedSeed;
+  int? currentTurn;
+  int? receivedWidth;
+  int? receivedHeight;
+  int? receivedMines;
 
   WebSocketClient();
 
@@ -15,25 +17,28 @@ class WebSocketClient {
     try {
       _socket = await WebSocket.connect(url);
       _connected = true;
-      print('✅ Conectado a $url');
-
       _socket.listen((data) {
         final msg = jsonDecode(data);
         if (msg is Map<String, dynamic>) {
           final type = msg['type'];
+          if (type == 'seed') {
+            receivedSeed = msg['seed'] as int;
+            if (msg.containsKey('width') && msg.containsKey('height') && msg.containsKey('mines')) {
+              receivedWidth = msg['width'] as int;
+              receivedHeight = msg['height'] as int;
+              receivedMines = msg['mines'] as int;
+            }
+          }
           if (type == 'turn') {
-            final currentPlayer = msg['currentPlayer'];
-            print('🔄 Turno del jugador $currentPlayer');
+            currentTurn = msg['currentPlayer'];
           }
           onServerEvent?.call(type, msg);
         }
       }, onDone: () {
-        print('🔌 Desconectado del servidor');
         _connected = false;
       });
     } catch (e) {
-      print('❌ Error al conectar a $url: $e');
-      rethrow; // Lanzar la excepción para que la UI la maneje
+      rethrow;
     }
   }
 
@@ -52,8 +57,6 @@ class WebSocketClient {
   void _send(Map<String, dynamic> msg) {
     if (_connected) {
       _socket.add(jsonEncode(msg));
-    } else {
-      print('⚠️ No conectado. Mensaje no enviado: $msg');
     }
   }
 

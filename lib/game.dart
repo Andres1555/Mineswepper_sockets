@@ -10,14 +10,28 @@ import 'package:sockets/network/client.dart';
 class GameBloc extends Bloc<Event, Gamemoment> {
   final GameConfiguration configuration;
   final WebSocketClient socket;
+  GameConfiguration _config;
 
   Timer? _timer;
   int _time = 0;
+  int? _seed;
 
-  GameBloc(this.configuration, this.socket) : super(GameInitial(configuration)) {
-    // Escucha mensajes del servidor
+  GameBloc(this.configuration, this.socket)
+      : _config = configuration,
+        super(GameInitial(configuration)) {
     socket.onServerEvent = (type, msg) {
       switch (type) {
+        case 'seed':
+          _seed = msg['seed'] as int;
+          if (socket.receivedWidth != null && socket.receivedHeight != null && socket.receivedMines != null) {
+            _config = GameConfiguration(
+              width: socket.receivedWidth!,
+              height: socket.receivedHeight!,
+              mines: socket.receivedMines!,
+            );
+          }
+          add(const InitGame());
+          break;
         case 'click':
           add(Click(msg['index']));
           break;
@@ -37,15 +51,15 @@ class GameBloc extends Bloc<Event, Gamemoment> {
   }
 
   void _onInitGame(InitGame event, Emitter<Gamemoment> emit) {
-    final List<Cell> cells = _generateCells(configuration.width, configuration.height, configuration.mines);
+    final List<Cell> cells = _generateCells(_config.width, _config.height, _config.mines, _seed);
     _time = 0;
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) => add(TimeTick()));
 
     emit(Playing(
-      configuration: configuration,
+      configuration: _config,
       cells: cells,
-      minesRemaining: configuration.mines,
+      minesRemaining: _config.mines,
       timeElapsed: _time,
     ));
   }
@@ -69,12 +83,17 @@ class GameBloc extends Bloc<Event, Gamemoment> {
 
     if (cell.content == CellCont.bomb) {
       _timer?.cancel();
+      
+      final loser = socket.currentTurn ?? 1;
+      final winner = loser == 1 ? 2 : 1;
       emit(Finished(
         configuration: current.gameConfiguration,
         cells: _revealAll(current.cells),
         minesRemaining: current.minesRemaining,
         isWinner: false,
         timeElapsed: _time,
+        loserPlayer: loser,
+        winnerPlayer: winner,
       ));
       return;
     }
@@ -85,12 +104,17 @@ class GameBloc extends Bloc<Event, Gamemoment> {
 
     if (hasWon) {
       _timer?.cancel();
+      
+      final loser = socket.currentTurn ?? 1;
+      final winner = loser == 1 ? 2 : 1;
       emit(Finished(
         configuration: current.gameConfiguration,
         cells: revealed,
         minesRemaining: 0,
         isWinner: true,
         timeElapsed: _time,
+        loserPlayer: loser,
+        winnerPlayer: winner,
       ));
     } else {
       emit(Playing(
@@ -125,9 +149,9 @@ class GameBloc extends Bloc<Event, Gamemoment> {
     ));
   }
 
-  List<Cell> _generateCells(int width, int height, int mines) {
+  List<Cell> _generateCells(int width, int height, int mines, [int? seed]) {
     final total = width * height;
-    final random = Random();
+    final random = seed != null ? Random(seed) : Random();
     final positions = <int>{};
 
     while (positions.length < mines) {

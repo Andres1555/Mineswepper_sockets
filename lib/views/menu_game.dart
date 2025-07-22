@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:sockets/colors.dart';
 import 'package:sockets/cells.dart';
 import 'package:sockets/model/model.dart';
 import 'package:sockets/sucesos/event.dart';
 import 'package:sockets/sucesos/moment.dart';
 import 'package:sockets/game.dart';
 import 'package:sockets/network/client.dart';
-import 'package:sockets/network/sockets.dart'; // 👈 Asegúrate de tener esta importación
+import 'package:sockets/network/sockets.dart'; 
 
 class Gamemenu extends StatefulWidget {
   static const routeName = '/game';
@@ -15,7 +14,7 @@ class Gamemenu extends StatefulWidget {
   final GameConfiguration configuration;
   final String serverAddress;
   final int serverPort;
-  final bool isHost; // 👈 Nuevo parámetro
+  final bool isHost; 
 
   const Gamemenu({
     super.key,
@@ -49,10 +48,16 @@ class _GamemenuState extends State<Gamemenu> {
     final url = 'ws://${widget.serverAddress}:${widget.serverPort}';
 
     if (widget.isHost) {
-      await startGame(isHost: true, port: widget.serverPort); // 👈 Usa el puerto correcto
+      await startGame(
+        isHost: true,
+        port: widget.serverPort,
+        width: widget.configuration.width,
+        height: widget.configuration.height,
+        mines: widget.configuration.mines,
+      );
     }
 
-    await socket.connect(url); // 👈 Luego se conecta como jugador
+    await socket.connect(url);
     bloc.add(const InitGame());
   }
 
@@ -76,7 +81,9 @@ class _GamemenuState extends State<Gamemenu> {
         builder: (context, state) {
           return Scaffold(
             appBar: AppBar(
-              title: const Text('MineSweeper'),
+              backgroundColor: Colors.black,
+              foregroundColor: Colors.white,
+              title: const Text('MineSweeper', style: TextStyle(fontFamily: 'yoster')),
               actions: [
                 IconButton(
                   icon: const Icon(Icons.refresh),
@@ -88,17 +95,50 @@ class _GamemenuState extends State<Gamemenu> {
             ),
             body: Container(
               decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.topCenter,
-                  colors: [kBackgroundStartColor, kBackgroundEndColor],
-                ),
+                color: Colors.black,
               ),
-              child: _getContent(state, context),
+              child: Column(
+                children: [
+                  _buildTurnBanner(),
+                  Expanded(child: _getContent(state, context)),
+                ],
+              ),
             ),
           );
         },
       ),
+    );
+  }
+
+  Widget _buildTurnBanner() {
+    return BlocBuilder<GameBloc, Gamemoment>(
+      bloc: bloc,
+      builder: (context, state) {
+        if (state is Playing || state is Finished) {
+          
+          final turnText = bloc.socket.currentTurn != null
+              ? 'Turno: Jugador ${bloc.socket.currentTurn}'
+              : 'Esperando turno...';
+          return Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            decoration: BoxDecoration(
+              border: const Border(bottom: BorderSide(color: Colors.white, width: 2)),
+              color: Colors.black,
+            ),
+            child: Text(
+              turnText,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white,
+                fontFamily: 'yoster',
+                fontSize: 18,
+              ),
+            ),
+          );
+        }
+        return const SizedBox.shrink();
+      },
     );
   }
 
@@ -120,6 +160,8 @@ class _GamemenuState extends State<Gamemenu> {
         state.minesRemaining,
         state.timeElapsed,
         state.isWinner,
+        loserPlayer: state.loserPlayer,
+        winnerPlayer: state.winnerPlayer,
       );
     }
     return const Center(child: CircularProgressIndicator());
@@ -131,8 +173,10 @@ class _GamemenuState extends State<Gamemenu> {
     List<Cell> cells,
     int minesRemaining,
     int timeElapsed,
-    bool isWinner,
-  ) {
+    bool isWinner, {
+    int? loserPlayer,
+    int? winnerPlayer,
+  }) {
     final socket = context.read<GameBloc>().socket;
 
     return Column(
@@ -172,11 +216,37 @@ class _GamemenuState extends State<Gamemenu> {
             },
           ),
         ),
-        if (isWinner)
+        if (loserPlayer != null && winnerPlayer != null) ...[
           Padding(
             padding: const EdgeInsets.only(top: 16),
             child: Text(
-              '🎉 CONGRATULATIONS 🎉',
+              '¡El Jugador $loserPlayer perdió!',
+              style: const TextStyle(
+                color: Colors.white,
+                fontFamily: 'yoster',
+                fontSize: 20,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              'Ganador: Jugador $winnerPlayer',
+              style: const TextStyle(
+                color: Colors.white,
+                fontFamily: 'yoster',
+                fontSize: 20,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ]
+        else if (isWinner)
+          Padding(
+            padding: const EdgeInsets.only(top: 16),
+            child: Text(
+              'CONGRATULATIONS',
               style: Theme.of(context).primaryTextTheme.headlineMedium,
             ),
           ),

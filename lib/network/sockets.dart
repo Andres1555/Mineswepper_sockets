@@ -2,40 +2,38 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:async';
 
-
 final List<WebSocket> _clients = [];
 final Map<WebSocket, int> _playerIds = {};
 int _currentPlayer = 1;
 WebSocket? _selfSocket;
+int? _gameSeed;
+int? _gameWidth;
+int? _gameHeight;
+int? _gameMines;
 
-/// Punto de entrada con parámetro isHost
-Future<void> startGame({required bool isHost, String? hostAddress, int? port}) async {
+
+Future<void> startGame({required bool isHost, String? hostAddress, int? port, int? width, int? height, int? mines}) async {
   if (isHost) {
     final ip = await _getLocalIP();
-    if (ip == null) {
-      print('❌ No se pudo obtener la IP local.');
-      return;
-    }
+    if (ip == null) return;
     final realPort = port ?? await _findFreePort();
-    // Inicia el servidor pero NO esperes a que haya clientes para enviar el tablero
+    _gameSeed = DateTime.now().millisecondsSinceEpoch % 1000000;
+    _gameWidth = width;
+    _gameHeight = height;
+    _gameMines = mines;
     unawaited(_startServer(ip, realPort));
     await _connectAsClient('ws://$ip:$realPort');
-    print('🟢 Host iniciado en ws://$ip:$realPort');
   } else {
-    if (hostAddress == null) {
-      print('❌ Dirección del host requerida para unirse.');
-      return;
-    }
+    if (hostAddress == null) return;
     final uri = Uri.parse(hostAddress);
     final port = uri.hasPort ? uri.port : 8080;
     await _connectAsClient('ws://${uri.host}:$port');
   }
 }
 
-/// Inicia el servidor WebSocket
+
 Future<void> _startServer(String ip, int port) async {
   final server = await HttpServer.bind(ip, port);
-  print('Servidor WebSocket en: ws://$ip:$port');
 
   await for (HttpRequest request in server) {
     if (WebSocketTransformer.isUpgradeRequest(request)) {
@@ -47,12 +45,20 @@ Future<void> _startServer(String ip, int port) async {
       }
       _clients.add(socket);
       _playerIds[socket] = _clients.length;
-      print('🎮 Cliente ${_playerIds[socket]} conectado');
+
+      if (_gameSeed != null) {
+        socket.add(jsonEncode({
+          'type': 'seed',
+          'seed': _gameSeed,
+          'width': _gameWidth,
+          'height': _gameHeight,
+          'mines': _gameMines,
+        }));
+      }
 
       socket.listen(
         (data) => _handleMessage(socket, data),
         onDone: () {
-          print('Cliente ${_playerIds[socket]} desconectado');
           _clients.remove(socket);
           _playerIds.remove(socket);
         },
@@ -71,24 +77,14 @@ Future<void> _startServer(String ip, int port) async {
   }
 }
 
-/// Conecta este mismo dispositivo como cliente
+
 Future<void> _connectAsClient(String url) async {
   try {
     _selfSocket = await WebSocket.connect(url);
-    print('✅ Conectado como jugador a $url');
-
     _selfSocket!.listen((data) {
-      final msg = jsonDecode(data);
-      if (msg is Map<String, dynamic>) {
-        final type = msg['type'];
-        print('📩 Evento recibido: $type → $msg');
-      }
-    }, onDone: () {
-      print('🔌 Desconectado del servidor');
-    });
-  } catch (e) {
-    print('❌ Error al conectar como cliente: $e');
-  }
+     
+    }, onDone: () {});
+  } catch (e) {}
 }
 
 void sendClick(int index) => _send({'type': 'click', 'index': index});
@@ -98,8 +94,6 @@ void sendRestart() => _send({'type': 'restart'});
 void _send(Map<String, dynamic> msg) {
   if (_selfSocket?.readyState == WebSocket.open) {
     _selfSocket!.add(jsonEncode(msg));
-  } else {
-    print('⚠️ No conectado. Mensaje no enviado: $msg');
   }
 }
 
